@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Sputnik</title>
+	<style>
+
+	.link line {
+	  stroke: #696969;
+	}
+
+	.link line.separator {
+	  stroke: #fff;
+	  stroke-width: 2px;
+	}
+
+	.node circle {
+	  stroke: #000;
+	  stroke-width: 1.5px;
+	}
+
+	.node text {
+	  font: 10px sans-serif;
+	  pointer-events: none;
+	}
+	path.link {
+	  fill: none;
+	  stroke: #666;
+	  stroke-width: 1.5px;
+	} 
+
+      .link {
+	  stroke: #fff;
+	  stroke-width: 2px;
+	}
+
+	path.in_link {
+		stroke: turquoise;
+		stroke-width : 2px;
+	}
+	path.out_link {
+		stroke : blue;
+		stroke-width : 2px;
+	}
+
+	circle {
+	  fill: #ccc;
+	  stroke: #fff;
+	  stroke-width: 1.5px;
+	}
+    circle.root-vertex {
+	   fill : magenta
+	}
+	
+	text {
+	  fill: #000;
+	  font: 10px sans-serif;
+	  pointer-events: none;
+	}
+	
+	div.tooltip {
+		position: absolute;	
+	  text-align: center;	
+	  text-color : black;
+	  width: auto;	
+	  height: auto;		
+	  padding: 2px;	
+	  font: 12px sans-serif;	
+	  background: lightyellow;	
+	  border: 0px;					
+	  border-radius: 8px;
+	  border-style : solid;
+	  border-color: violet;
+	}
+	
+	circle:hover
+	{
+	  fill: red;
+	  r: 10
+	}
+	
+	#vertex_info {
+	   float:left;
+	   border-style : solid;
+	}
+	circle.selected_node {
+		fill : yellow;
+		r : 10;
+		stroke : orange;
+	}
+	circle.deselected_node {
+		fill : grey;
+		stroke : black;
+		r : 10;
+	}
+	</style>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <link rel="icon" href="/images/logo.png" type="image/x-icon">
+	<link rel="stylesheet" href="/bootstrap/dist/css/bootstrap.min.css">
+  </head>
+  
+  <body>
+    
+   <!-- navigation bar -->
+  
+   <nav class="navbar navbar-default">
+    <div class="container-fluid">
+      <a class="navbar-brand"><i class="glyphicon glyphicon-bullhorn"></i> The Vue Events Bulletin Board</a>
+    </div>
+  </nav>
+  <div class="container" id="pages">
+	<a href="#" class="list-pages" v-for="page in pages">
+		<h4>{{page.name}}</h4>
+	</a>
+  </div>
+  
+   <!-- show list of databases -->
+
+	<div class = "container" id="database_list">
+		
+		<div class="panel panel-default">
+			<div class="panel-heading">
+			  
+			  <h4 v-if="connectedDb==''"> Connect to a Database </h4>
+			  <h4 v-if="connectedDb!=''"> Connected to: {{connectedDb}} </h4>
+			</div>
+			
+			<div class="panel-body">
+			<div class="row">
+			   <div class = "col-sm-3">
+		
+				<select v-model="selectedDb"">
+					<option v-for="db in dbs">{{db}}</option>
+				</select>
+				
+
+				</div>
+
+			<!--	
+				<div class="col-sm-3">
+					<input type="text" placeholder="username" v-model="connParams.user" />
+					<input type="text" placeholder="pass" v-model="connParams.pass" />
+				</div>
+				-->
+				<div class="col-sm-3">
+					<div class="btn btn-default" v-on:click="connectToDb(selectedDb)">
+					   Connect
+					</div>
+				</div>
+			</div>	
+			<!--
+			<br>
+			<div class="row">
+			 <div class = "col-sm-3">
+				<div class="input-group">
+					<input type="text" v-model="getClassParams.className" class="form-control" placeholder="class"/>
+				</div>
+			</div>	
+			<div class="col-sm-3">
+				<div class="btn btn-default" v-on:click="getClassInfo()">
+				   GetClass
+				</div>
+			</div>
+			</div>	
+			-->
+			<br>
+			<div v-if="connectedDb" class="row">
+				 <div class = "col-sm-2">
+					<div  class="input-group">
+						 <select  v-model = "selectedClass" v-on:change="getSelectedClassProps()">
+							<option v-for= "class in classes">{{class}} </option>
+						 </select>					
+						
+					</div>
+				</div>	
+				
+				<div class="col-sm-2" >
+					
+				</div>
+				<div v-show="selectedClass" class="col-sm-4">
+					<div class="btn btn-default" v-on:click="getVertexMapData()">
+					   GetVertexMap
+					</div>
+				</div>
+				
+			</div>
+			
+			<br>
+			<div v-show="selectedClass" class = "container">
+
+				<div class = "input-group">
+					<div v-for="crit in classCriteria">
+					
+						<select v-model="crit.prop">
+							<option v-for='prop in classProps'>{{prop.name}} </option>
+						</select>
+						
+						<input class = 'text' placeholder='Value' v-model='crit.value'/>
+						<button v-on:click="delCriteria($index)">X</button>
+					</div>
+					<button class="btn btn-default" v-show="(classCriteria.length <= classProps.length-1)" v-on:click="addClassCriteria()"> Add </button>
+				</div>
+			</div>
+
+			<br>
+			<div  id="prop_selector">
+					<prop-selector></prop-selector>
+				</div>
+			 </div>
+			
+			
+			
+		</div>
+
+	</div> 
+    <div>
+	    <div class="row">	
+	    	<div class="container vertex_pane col-sm-2" id="vertex_info">
+			<div>Vertex Info</div>
+			<span>{{xxxMsg}}</span>
+			<li v-for="i in vertexAttr">
+				{{i}}
+			</li>
+		</div>
+		<div class="container col-sm-10"  id="svg_area">
+		 
+			<div class="container" v-show="resultsLoaded">
+				Graph : 	
+				<select class ="form-control" v-model = "traverseStrategy">
+				  <option>depth_first </option>
+			  	<option>breadth_first </option>
+			  
+				</select>
+			   	<button class="btn btn-info" v-on:click="renderGraph()">Generate Graph</button>
+			</div>
+			
+		</div>
+		</div>	
+	</div>
+	
+  
+
+  <!-- JS -->
+  <!--
+  <script src="node_modules/vue/dist/vue.js"></script>
+  <script src="node_modules/vue-resource/dist/vue-resource.js"></script> 
+  -->
+<script src="scripts/bundle.js"></script>
+  </body>
+</html>

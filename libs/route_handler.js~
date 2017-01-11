@@ -1,0 +1,155 @@
+var express = require('express');
+var session = require('express-session');
+var router = express.Router();
+var _request = require('request');
+var OEngine = require('./db_handler.js');
+
+var oEngine = new OEngine();
+
+ oEngine.setConn({
+  host: 'localhost',
+  port: 2424,
+  username: 'root',
+  password: 'root'
+}); 
+
+
+oEngine.connectServer();
+
+// middleware that is specific to this router
+router.use(function timeLog(req, res, next) {
+  console.log('Time: ', Date.now());
+  next();
+});
+// define the home page route
+router.get('/', function(req, res) {
+	console.log(req.session);
+  res.render('home');
+});
+
+router.get('/login', function(req, res) {
+  res.render('login');
+});
+
+router.get('/listDatabases',function(req,res){
+	_request.get('http://localhost:2480/listDatabases',(error,response,body)=>{
+		res.send(body);
+	})
+
+})
+router.get('/disconnect',function(req,res){
+	_request.get("http://localhost:2480/disconnect",(error,response,body)=>{
+		if(error) res.send(error);
+		res.send(body)
+	})
+	
+});
+
+router.get("/connect/:db",function(req,res){
+	
+ 	var dbName = req.params.db;
+	oEngine.openDB(dbName,'root','root'); 
+	oEngine.getClassListPr(dbName)
+	.then(vals => {
+		//console.log(vals);
+		var classArr = [];
+		vals.forEach((e,i,a) => {
+			classArr.push(e.name);
+		});
+		console.log("classArr=",classArr)
+		res.send({
+				classList : classArr
+			});
+	})
+	.catch(e => {
+		var _e = e;
+		res.status(500).send({error : _e})
+	})
+	
+	//dbEngine.
+	//res.send(200)
+})
+
+router.get('/getClassProps/:db/:class',(req,res)=>{
+	
+	var dbName = req.params.db;
+	var className = req.params.class;
+	//var sql = req.body.sql;
+	//console.log(sql);
+	oEngine.getClassPropsPr(dbName, className)
+	.then(val => {		
+	   console.log('successfully got class props',val);
+	   //var data = JSON.stringify(val);
+		res.send({classProps: val});
+	})
+	.catch(e =>{
+		var _e = e;
+		console.log('exception',_e)
+		res.status(404).send({error : _e});
+	})
+	
+})
+
+
+
+router.get('/getByRid/:db/:rid',(req,res) => {
+	var dbName = req.params.db;
+	var rid = '#' + req.params.rid.replace('_',':');
+	
+	
+	oEngine.getByRid_Pr(dbName,rid)
+	.then(val => {
+		res.status(200).send(val)
+	})
+	.catch(e => {
+		res.status(500).send(e)
+	})
+	
+})
+
+router.post('/getVertexMap/:db/:class', (req,res) => {
+	var dbName = req.params.db;
+	var className = req.params.class;
+	var classCriteria = req.body.classCriteria;
+	var strategy = 'BREADTH_FIRST';
+	console.log('Class criteria...');
+	console.log(classCriteria);
+	var whereStr = "", whereArr = [];
+	var params = {params:{}};
+    
+	classCriteria.forEach((e,i,a) => {
+		//if(whereStr == "") whereStr = ' where ';
+		whereArr.push(` ${e.prop} = :${e.prop} `);
+		//whereStr += ` ${e.prop} = :${e.prop}`
+		params.params[e.prop] = e.value;
+	});
+	
+	if(whereArr.length > 0) 
+	{
+		whereStr = ' WHERE ';
+		whereStr += whereArr.join(' AND ');
+	}
+//	if(whereArr.length > 1)
+	 
+	console.log(whereStr);
+	var depth = 5, limit=500;
+	var sql = `select * from ( TRAVERSE bothE(), bothV() from (SELECT * FROM ${className.toLowerCase()} ${whereStr}) while $depth <= ${depth} strategy ${strategy} ) LIMIT ${limit}`;
+	console.log(sql);
+	console.log(params);
+	oEngine.execQueryPr(dbName,sql,params)
+	.then(val=>{
+		console.log(val)
+		res.status(200).send({data : val.results});
+	})
+	.catch(ex => {
+		res.status(500).send({data:ex});
+	})
+	
+	
+})
+
+module.exports = router;
+
+
+
+

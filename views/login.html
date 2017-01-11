@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Vue.js HN Clone</title>
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <link rel="icon" href="/images/logo.png" type="image/x-icon">
+	<link rel="stylesheet" href="/bootstrap/dist/css/bootstrap.min.css">
+  </head>
+  
+  <body>
+   <!-- navigation bar -->
+  
+   <nav class="navbar navbar-default">
+    <div class="container-fluid">
+      <a class="navbar-brand"><i class="glyphicon glyphicon-bullhorn"></i> The Vue Events Bulletin Board</a>
+    </div>
+  </nav>
+  <div class="container" id="pages">
+	<a href="#" class="list-pages" v-for="page in pages">
+		<h4>{{page.name}}</h4>
+	</a>
+  </div>
+  
+   <!-- show list of databases -->
+
+	<div class = "container" id="database_list">
+		
+		<div class="panel panel-default">
+			<div class="panel-heading">
+			  
+			  <h4 v-if="connectedDb==''"> Connect to a Database </h4>
+			  <h4 v-if="connectedDb!=''"> Connected to: {{connectedDb}} </h4>
+			</div>
+			
+			<div class="panel-body">
+			<div class="row">
+			   <div class = "col-sm-3">
+		
+				<select v-model="selectedDb"">
+					<option v-for="db in dbs">{{db}}</option>
+				</select>
+				
+
+				</div>
+
+				
+				<div class="col-sm-3">
+					<input type="text" placeholder="username" v-model="connParams.user" />
+					<input type="text" placeholder="pass" v-model="connParams.pass" />
+				</div>
+				
+				<div class="col-sm-3">
+					<div class="btn btn-default" >
+					   Connect
+					</div>
+				</div>
+			</div>	
+			
+			<br>
+			<div class="row">
+			 <div class = "col-sm-3">
+				<div class="input-group">
+					<input type="text" v-model="getClassParams.className" class="form-control" placeholder="class"/>
+				</div>
+			</div>	
+			<div class="col-sm-3">
+				<div class="btn btn-default" v-on:click="getClassInfo()">
+				   GetClass
+				</div>
+			</div>
+			</div>	
+			 
+			</div>
+			
+			
+			
+		</div>
+		
+		
+		
+
+	</div> 
+  
+  
+
+  <!-- JS -->
+  <!--
+  <script src="node_modules/vue/dist/vue.js"></script>
+  <script src="node_modules/vue-resource/dist/vue-resource.js"></script> 
+  -->
+<script src="scripts/bundle.js"></script>
+  </body>
+</html>

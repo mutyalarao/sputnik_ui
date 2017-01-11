@@ -1,0 +1,778 @@
+import Vue from 'vue'
+import d3 from 'd3'
+//var Vue = require('vue');
+
+class XForm{
+	
+	constructor(){
+		this.obj = {};
+		this.obj.translate = [];
+		this.obj.scale = [];
+	}
+	
+
+	setXForm(val){
+		if(val == "" || val==undefined)
+			new XForm();
+		else{
+		   val.split(')').forEach((e,i,a) => {
+			if(e){
+				var attr = e.split('(')[0];
+				var args = e.split('(')[1].split(',');				
+				this.obj[attr] = args;			
+			}
+			
+		   })		
+		
+		}
+
+	}
+	setTranslate(x,y){
+	        if(!y && x.length > 1) {
+		    this.obj.translate = x
+		}
+		else	
+		    this.obj.translate = [x,y];
+		
+	}
+	addTranslateVals(x,y){
+		
+		this.obj.translate[0] = parseInt(this.obj.translate[0]) + x;
+		this.obj.translate[1] = parseInt(this.obj.translate[1]) + y;
+	}
+	getTranslate(){
+		return this.obj.translate;
+	}
+	addScale (val) {
+		
+	}
+	setScale(val){
+		this.obj.scale = [val];
+	}
+	getScale(){
+		if(this.obj.scale[0])
+			return this.obj.scale[0];
+		else
+			return 1;
+	}
+	getXFormString(){
+		var val="", i;
+		for(i in this.obj){
+			if(this.obj[i].length > 0)
+			   val += `${i}(${this.obj[i].join(',')})`;			
+		}
+		return val;	
+	}
+}
+
+class AttrWrapper{
+	constructor(){
+   		this.entries = new Set();	
+	}
+	getValue() {
+		var arr = [];
+		this.entries.forEach(el => {arr.push(el)});
+		return arr.join(' ');
+	}
+	setValue(val) {
+		var str = val;
+		this.entries.clear();
+		val.split(' ').forEach(x => {
+			if(x.trim().length > 0)
+			   this.entries.add(x.trim());
+		});
+		return this;
+		
+		
+	}
+	add(val){
+		if(val.trim().length > 0)
+			this.entries.add(val.trim())
+		return this;
+	}
+	remove(val){
+		this.entries.delete(val);
+		return this;
+	}
+	replace(oldV,newV){
+		this.entries.delete(oldV);
+		this.entries.add(newV.trim());
+		return this;
+	}
+
+}
+
+
+Vue.use(require('vue-resource'));
+
+// define
+var propSelector = Vue.extend({
+  template: "<div v-for='prop in classProps'> \
+  {{prop.name}} \
+  </div>"
+})
+
+// register
+Vue.component('prop-selector', propSelector)
+
+// create a root instance
+new Vue({
+  el: '#prop_selector'
+})
+
+var vertexPane = new Vue({
+	el : '#vertex_info',
+	data : {
+		vertexArr : ['a','b'],
+		xxxMsg : "aewwrewr"
+	},
+	ready : function(){
+		//this.$set('vertexArr', ['aaaa','sdfsfd','werwer','fghfgh'])
+	}
+});
+
+var svgRenderer = new Vue({
+	
+  el : '#svg_area',
+  data : {
+	 svg : {}, 
+	 cx : 10,
+     cy:10,
+     margin : {left:10,right:10,top:10,bottonm:10},
+	 width : 1200,
+	 height : 800,
+	 nodes : {},
+	 links : [],
+	 rootRid : "",
+	 pkeyMap : {},
+	 resultsLoaded : false,
+	 resultsParsed : false,
+     selectedVertex : {},
+	 originalResponse : {},
+    	 edgeIndex : {}
+	 
+  },
+  ready:function(){
+  
+	var pkeyMap = new Set();
+	
+	//svg.append("circle").attr("cx",10).attr("cy",10).attr("r",10);
+	
+	//this.$set('svg',svg)
+	 
+  },
+  
+  methods: {
+	  
+	 renderReady : function(){
+		 if(dbHandler.selectedClass)
+			 return true;
+		 
+		 else
+			 return false;
+	 },
+	
+	parseResults : function(){
+		var _this = this;
+		this.edgeIndex = new Map();
+		return new Promise(
+		(resolve,reject) => {
+			_this.nodes = {};
+			_this.links = [];
+			
+			var pArr = [];
+			
+			//FUnction to fetch orphan vertex data
+			var getByRid = function(_nodes,link,prop){
+				var rid = link[prop];
+				var nodes = _nodes, rid = link[prop] , connectedDb = dbHandler.connectedDb;
+				var ridX = rid.slice(1).replace(':','_');
+				console.log('in function ',rid)
+				return new Promise((resolve,reject) => {
+					 var ajaxUrl = `/getByRid/${connectedDb}/${ridX}`;
+					 console.log(ajaxUrl);
+						_this.$http({url: ajaxUrl, method : 'GET'})
+						.then( response => {
+							_this.nodes[rid].data = response.data;
+							link[prop] = _this.nodes[rid];
+							resolve(1);
+						},
+						error => {
+							console.log(error);
+							reject(error);
+						})
+					
+					 
+				 } // END function
+				); //END Promise
+			} //END Function
+			
+			if(dbHandler.resultArr.length > 0){
+				console.log('dbHandler.resultArr');
+				//console.log(dbHandler.resultArr)
+				//*****************
+				//DIAGNOSIS CODE
+				console.log(` DIAGNOSIS ... Total count of rows = ${dbHandler.resultArr.length}`);
+		
+				//********************
+				
+				
+				// *******************************
+				//For each
+				dbHandler.resultArr.forEach((e,i,a) => {
+					
+					//var rid = "#" + e.cluster + ":" + e.position;
+					var rid = e['@rid'];
+					if(i == 0) _this.rootRid = rid;
+					
+					console.log(e);
+					//console.log(`rid = ${rid} and class = ${e['@class']} and e.value.in = ${e.value.in} and e.value.out = ${e.value.in}`)
+					if(e.in != undefined || e.out != undefined) //edge
+					{
+						console.log('inside if', e['@class'],rid)
+						//console.log('')
+						var lastIndex = _this.links.push({
+							source : e.out,
+							target : e.in,
+							class : e['@class'],
+							rid : rid,
+							type : "suit"
+						});
+
+						this.edgeIndex.set(rid,lastIndex-1);
+					} 
+					else{
+						console.log('inside else', e['@class'], rid)
+						console.log(e);
+						_this.nodes[rid] = {name : rid};
+						_this.nodes[rid].data = e;
+						
+						console.log(_this.nodes[rid]);
+					}
+				}); //end forEach
+
+			console.log(`Diagnosis.... node count = ${Object.getOwnPropertyNames(_this.nodes).length}  and links count = ${_this.links.length}`);
+			//console.log(this.nodes);
+			//assign the node objects to the links		
+			function fixEdgeArrays(edge, nodes, direction){
+				 
+			}
+			_this.links.forEach((e,i,a) => {
+				
+				
+/* 				//fix any missing in/out edge arrays
+				if(e.source) { // Set the OUT 
+					//console.log('clas is = ' + e.class)
+					var outArrName = "out_" + e.class;
+					console.log('setting out edge array for ' + e.source + ' class '+ outArrName);
+					console.log(this.nodes[e.source])
+					if(!this.nodes[e.source].hasOwnProperty(outArrName)){ //Edge Array NOT present
+						this.nodes[e.source][outArrName] = [];
+						this.nodes[e.source][outArrName].push(e.rid);
+					}
+					else{ //Edge Array present
+						var s = new Set(this.nodes[e.source][outArrName]);
+						if (!s.has(e.rid)) //edge array does not have the edge rid
+						  this.nodes[e.source][outArrName].push(e.rid);
+					}
+				}
+				if(e.target){ //FIX the IN arrays
+					//console.log('clas is = ' + e.class)
+					var arrName = "in_" + e.class;
+					if(!this.nodes[e.target].hasOwnProperty(arrName)){ //Edge Array NOT present
+					
+						this.nodes[e.target][arrName] = [];
+						this.nodes[e.target][arrName].push(e.rid);
+					}
+					else{ //Edge Array present
+						var s = new Set(this.nodes[e.target][arrName]);
+						if (!s.has(e.rid)) //edge array does not have the edge rid
+						  this.nodes[e.target][arrName].push(e.rid);
+					}
+					
+				} */
+				
+				
+				if(_this.nodes[e.source]){ // node exists,then point to the link
+					e.source = _this.nodes[e.source] 				
+				}
+				else{				//node does not exists, fetch its data from a Promise
+					_this.nodes[e.source] = {name : e.source};
+					//Fetch the vertex data by rid
+					//console.log(`in else ${e.source}`);
+					pArr.push(getByRid(_this.nodes,e,'source'))
+				}
+				
+				if(_this.nodes[e.target]){
+					e.target = _this.nodes[e.target] 				
+				}
+				else{				
+					_this.nodes[e.target] = {name : e.target};
+					//console.log(`in else ${e.target}`);
+					//Fetch the vertex data by rid
+					pArr.push(getByRid(_this.nodes,e,'target'))
+				}
+				
+				/* e.source = this.nodes[e.source] || (this.nodes[e.source] = {name : e.source});
+				e.target = this.nodes[e.target] || (this.nodes[e.target] = {name : e.target});; */
+			});
+			
+			console.log(`pArr length = ${pArr.length}`)
+			
+			} //end if
+			console.log(`root rid = ${_this.rootRid}`)
+			if(pArr.length == 0)
+			{
+				_this.resultsParsed = true;	
+				return true;
+			}else
+			{
+				Promise.all(pArr)
+				.then(vals => {console.log('parseResults complete..');
+								resolve(vals);
+					})
+				.catch(e =>  {
+					console.log('parseResults failed to complete..',e);
+					reject(e);});
+			}
+			
+			
+		});
+		
+	
+	},
+
+	renderGraph : function(){
+	var thisEl = this;
+	this.parseResults()
+	.then(vals => { 
+		console.log("after parseResults")
+		     console.log(this.nodes);
+			var xform = {x:0, y:0};
+		   var dragPos = {x:0 , y:0};
+			var nodes = this.nodes;
+	            var links = this.links;
+				//console.log(nodes);
+			var force = d3.layout.force()				
+				.size([this.width-50, this.height-50])
+				.linkDistance(30)
+				.charge(-300)
+				//.charge(10)
+				.linkDistance(100)
+				.nodes(d3.values(nodes))
+				.links(links)
+				.on("tick", tick)
+				.start();
+				
+	      d3.select("#svg_area").select("svg").remove();
+		  var drag = d3.behavior.drag();
+		  var xform = new XForm();	
+		  var zoom = d3.behavior.zoom().scaleExtent([1,10]);	
+			
+		
+		  var svg = d3.select("#svg_area")
+					.append("svg")
+					.attr("width",this.width)
+					.attr("height",this.height)
+					.call(drag)
+					.call(zoom);
+		//			.append('g')
+		//			.call(d3.bhavior.zoom().scaleExtent([1,10]).on('zoom',zoom));
+
+		  var canvasG = svg.append("g")
+					.attr("transform", "translate("+this.margin.left + "," + this.margin.top + ")" )
+				//	.call(zoom)
+				//	.append('g');
+
+	       
+		   
+			drag.on("dragstart", () => {
+				xform.setXForm(canvasG.attr("transform"));
+				//var xlate = this.parseTransform(canvasG.attr("transform"),"translate");
+				//console.log(this.getTransform(canvasG.attr("transform")));
+				console.log(xform.getTranslate());
+				xform.x = parseInt(xform.getTranslate()[0]); //store the current xform
+				xform.y = parseInt(xform.getTranslate()[1]);
+				dragPos.x = d3.event.sourceEvent.pageX; //store the starting drag coord
+				dragPos.y = d3.event.sourceEvent.pageY;
+			})
+			.on("drag", () => {
+				var eX = d3.event.sourceEvent.pageX;  //current mouse coord
+				var eY = d3.event.sourceEvent.pageY;
+				var  x_ = eX - dragPos.x; //delta
+				var  y_ = eY - dragPos.y;
+				var xform2 = new XForm();
+				xform2.setXForm(xform.getXFormString());
+				xform2.addTranslateVals(x_,y_);
+				var xFormVal = xform2.getXFormString();
+				console.log('drag -> getXFormString ',xFormVal)
+				canvasG.attr("transform",xFormVal); // new translate
+			})
+			.on("dragend", () => {
+				
+			})
+			
+			zoom.on('zoom' , () => {
+				
+				xform.setXForm(canvasG.attr('transform'));
+				//var xformG = canvasG.attr('transform');
+				console.log('d3.event.scale=',d3.event.scale)
+				var curScale = parseInt(xform.getScale());
+				//var factor = (d3.event.scale - curScale)/4;
+			        //console.log(d3.event.translate)
+				xform.setTranslate(d3.event.translate);
+				xform.setScale(d3.event.scale);
+				var xFormVal = xform.getXFormString();
+				console.log(`curScale -> ${curScale}, scale -> getXFormString ',${xFormVal}`)
+				//xform.setTranslate(d3.event.translate.split(','));
+				canvasG.attr("transform",xFormVal); // new translate
+			});
+		// Per-type markers, as they don't inherit styles.
+		 	canvasG.append("defs").selectAll("marker")
+				.data(["suit", "licensing", "resolved"])
+			  .enter().append("marker")
+				.attr("id", function(d) { return d; })
+				.attr("viewBox", "0 -5 10 10")
+				.attr("refX", 15)
+				.attr("refY", -1.5)
+				.attr("markerWidth", 6)
+				.attr("markerHeight", 6)
+				.attr("orient", "auto")
+			  .append("path")
+				.attr("d", "M0,-5L10,0L0,5"); 
+			canvasG.selectAll('defs').append('marker')
+				.attr("id", "linkBegin")
+				//.attr("viewBox", "0 0 10 10")
+				//.attr("refX", 5)
+				//.attr("refY", 5)
+				//.attr("markerWidth", 6)
+				//.attr("markerHeight", 6)
+				.attr("orient", "auto")
+				.append("circle").attr("cx",2).attr("cy",2).attr("r",2)
+//				.append("rect").attr("x",1).attr("y",1).attr("height",5).attr("width",5);
+			
+			var path = canvasG.append("g").selectAll("path")
+				.data(force.links())
+			  .enter().append("path")
+				.attr("class", function(d) { return "link " + d.type; })
+				.attr("id",function(d){ return d.rid.replace('#','r').replace(':','-'); })
+				.attr("marker-start","url(#linkBegin)")
+				.attr("marker-end", function(d) { return "url(#" + d.type + ")"; }); 
+			
+
+			var div = d3.select("body").append("div")
+						.attr("class", "tooltip");
+
+			var circle = canvasG.append("g").selectAll("circle")
+				.data(force.nodes())
+			  .enter().append("circle")
+				.attr("r", 6)
+				.attr("class", d => {
+					//console.log(d.name)
+					if(d.name == this.rootRid) 
+						{
+							console.log("root!")
+							return "root-vertex";
+							}
+					else return "branch-vertex"
+				})	
+				.on('click', selectVertex)
+				
+			
+			//.attr("class", "vertex")
+				.on("mouseover",(d) => {
+					div.transition()
+						.duration(500)
+						.style("opacity",0)
+						.transition(500)
+						.style("opacity",.9);	
+						
+					//ajax call to get the propSelector
+					var className = d.data['@class'];
+					//var ajaxUrl = `/getClassProps/{dbHandler.connectedDb}/{className}`;
+					var htmlText = "";
+					var _d3 = d3, ex = d3.event.pageX, ey =d3.event.pageY;
+					console.log(`ex = ${ex}, ey = ${ey}`)
+					dbHandler.getClassPropMap(className)					
+					.then(val => {
+						var str = `class : <b> ${d.data['@class']} </b> <br>`;
+						val.forEach((e,i,a) => {
+							str += ` ${e} : <b> ${d.data[e]} </b> <br>`;
+						});
+						htmlText = `${str} <br>` ;
+						console.log(htmlText)
+						div.html(htmlText)
+							.style("left", (ex) + "px")             
+							.style("top", (ey) + "px");
+					})
+					.catch(e => {
+						console.log('onmouse fail -',e)
+					})
+
+				})
+
+			function colorEdges(edgeArr, direction){
+				var classVal = "", attrW = new AttrWrapper();
+				if (direction == "in") classVal = "in_link"
+				else classVal = "out_link";
+				//reset old highlighted links to normal
+				d3.selectAll("."+classVal).forEach((e,i,a)=>{
+					e.attr("class",attrW.setValue(e.attr('class')).remove(classVal).getValue());
+				});
+
+				edgeArr.forEach((e,i,a) => {
+					var htmlId = "#"+e.replace('#','r').replace(':','-');
+					var path = d3.select(htmlId), attrW = new AttrWrapper(); 
+					if(path){
+						var val = attrW.setValue(path.attr("class")).add(classVal).getValue();
+						console.log(`${e} - ${htmlId} - attr=${attrW} - ${path.attr('class')}`);
+						path.attr("class", val);
+					}
+					
+				})
+			}
+
+			function selectVertex(d)  {
+				//d3.select(this).style('fill','yellow');
+				//d3.select(this).attr('class','selected_node')
+				//reset old selected Node
+				var attr = new AttrWrapper();
+				
+				if(thisEl.selectedNode){
+					var t = attr.setValue(thisEl.selectedNode.attr("class")).remove('selected_node').getValue();
+					console.log(t)
+					thisEl.selectedNode.attr("class",t);
+				
+				}
+				 //  thisEl.selectedNode.attr("class", "deselected_node" );
+				//store the node
+				var selected = d3.select(this);				
+				thisEl.selectedNode = selected;	
+				//apply style to the selected node
+				selected.attr("class", attr.setValue(selected.attr("class")).add("selected_node").getValue());
+
+				//color all the
+				var inEdgeArr=[], outEdgeArr = []; 
+				console.log(thisEl.nodes[d.name]);
+
+				for (var prop in thisEl.nodes[d.name].data)
+				{
+					if (prop.startsWith("in_")) inEdgeArr = thisEl.nodes[d.name].data[prop]
+					else
+						if(prop.startsWith("out_")) outEdgeArr = thisEl.nodes[d.name].data[prop];
+
+				}
+				console.log(`inEdgeArr = ${inEdgeArr}`);
+				console.log(`outEdgeArr = ${outEdgeArr}`);
+				colorEdges(inEdgeArr, "in");
+				colorEdges(outEdgeArr, "out");
+				//console.log(dbHandler.resultArr);
+				//console.log(dbHandler.originalResponse)
+			}
+			
+			var text = canvasG.append("g").selectAll("text")
+				.data(force.nodes())
+			  .enter().append("text")
+				.attr("x", 8)
+				.attr("y", ".31em")
+				//.text("");
+				.text(function(d) { return d.name; });
+
+			// Use elliptical arc path segments to doubly-encode directionality.
+			function tick() {
+			  path.attr("d", linkArc);
+			  circle.attr("transform", transform);
+			  text.attr("transform", transform);
+			}
+
+			function linkArc(d) {
+			  var dx = d.target.x - d.source.x,
+				  dy = d.target.y - d.source.y,
+				  dr = Math.sqrt(dx * dx + dy * dy);
+			  //return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
+			  return "M" + d.source.x + "," + d.source.y + "L" + d.target.x + "," + d.target.y;
+			}
+
+			function transform(d) {
+			  return "translate(" + d.x + "," + d.y + ")";
+			}	
+			function dblclick(d) {
+			  d3.select(this).classed("fixed", d.fixed = false);
+			}
+
+			function dragstart(d) {
+			  d3.select(this).classed("fixed", d.fixed = true);
+			}	
+		
+	})
+	.catch(e => {
+		console.log('Parseresults failed ', e)
+	})
+	  }
+		
+		
+	}
+	  
+  })
+
+var dbHandler = new Vue({
+
+  // We want to target the div with an id of 'events'
+  el: '#database_list',
+
+  // Here we can register any values or collections that hold data
+  // for the application
+	 data: {
+	  
+	  dbs: []
+	  ,classes : []
+	  ,selectedDb: ""
+	  ,connectedDb:""
+	  ,selectedClass : ""
+	  ,classProps : []
+	  ,classPropMap : new Map()
+	  ,getClassParams:{
+		  className: ""
+	  }
+	  ,connParams:{
+		  host : ""
+		  ,port : ""
+		  ,url : ''
+		  ,osessionid : ""
+		  ,user : ""
+		  ,pass : ""
+	  }
+	  ,getVertexMap:{
+		  className : ""
+		  ,vertexName : ""
+		  , depth : 10
+	  }
+	  ,classCriteria:[]
+	  ,resultArr:[]
+	},
+
+	 // Anything within the ready function will run when the application loads
+	ready: function() {
+	  // When the application loads, we want to call the method that initializes
+	  // some data
+	  
+/* 	  this.$set('connParams.host',location.host.split(':')[0]);
+	  this.$set('connParams.port',2480);
+	  this.$set('connParams.url','http://'+this.connParams.host + ':' + this.connParams.port);*/
+	  this.classes = [];
+	  this.getDatabaseList(); 
+	  this.selectedClass = "";
+	  this.classProps = [];
+	  //this.classPropMap = new Set();
+	},
+
+
+  // Methods we want to use in our application are registered here
+  methods: {
+		   // We dedicate a method to retrieving and setting some data
+/* 	  getDatabaseList: function() {
+		this.$http.get('http://localhost:2480/listDatabases',(data)=>{
+			this.$set('dbs');
+		}); */
+		 getDatabaseList: function() {
+			// GET request
+			 var ajaxUrl = '/listDatabases';
+			 
+			this.$http({url: ajaxUrl, method: 'GET'}).then(function (response) {
+			  
+			  // success callback
+			  console.log(response)
+			  this.$set('dbs',response.data.databases);
+			  
+		  }, function (response) {
+			  // error callback
+		  });
+		 } ,
+		 
+		connectToDb:function(dbName){
+			this.$http({url:'/connect/'+dbName, method:"GET"})
+			.then(response=>{
+				this.connectedDb = dbName;
+				this.$set('classes', response.data.classList);
+				//console.log(this.classes);
+			}
+			,val=>{})
+		},
+		
+		getVertexMapData : function(){
+
+     		console.log(this.classCriteria);
+			var url = 'getVertexMap/' + this.connectedDb + '/' + this.selectedClass;
+	/* 		$.get(url, this.classCriteria, function(data){
+				console.log(data);
+			}) */
+		Vue.http.post(url,{classCriteria:this.classCriteria})
+			.then(res => {
+				console.log("Begin Post response")
+				console.log(res.data);
+				//console.log(res.data.data.results[0].content[0].value.out_record_fields);
+				//console.log(res.data.data.results[0].content[0].value.out_subrecords);
+				console.log("END Post response")
+			    this.$set('resultArr',res.data.result);
+				svgRenderer.$set('resultsLoaded',true);
+				this.$set('originalResponse',res);
+			},
+			err =>{
+				
+			}) 
+		},
+		
+		getSelectedClassProps : function(){
+			this.$http({url:'/getClassProps/' + this.connectedDb + '/' + this.selectedClass})
+			.then(res => {
+				this.$set('classProps',res.data.classProps);
+				
+				console.log(this.classProps);
+			},
+			err => {
+					
+			});
+			
+		},
+		getClassPropMap : function(className){
+			return new Promise((resolve,reject) => {
+				var curPropMap = this.classPropMap.get(className);
+				//if already exists, return curated array
+				if(curPropMap){
+						resolve(curPropMap);
+				}
+				
+				this.$http({url:'/getClassProps/' + this.connectedDb + '/' + className, method:'GET'})
+				.then(res => {
+					//this.$set('classProps',res.data.classProps);
+					var arr = res.data.classProps;
+					var arr2 = [];
+					arr.forEach((e,i,a) => {
+						arr2.push(e.name);
+					})
+					this.classPropMap.set(className, arr2)
+					//console.log(this.classProps);
+					resolve(arr2);
+				},
+				err => {
+					reject(err);
+				});				
+			})
+			
+			
+		},
+		addClassCriteria: function(){
+		/* 	var temp  = classCriteria;
+			temp.push({prop:'' , value:''});
+			
+			this.$set('classCriteria',temp); */
+			this.classCriteria.push({prop:'' , value:''});
+		},
+		
+		delCriteria: function(i){
+			this.classCriteria.splice(i,1);
+			
+		}
+		 
+		}
+  });
