@@ -46,16 +46,19 @@ router.get('/disconnect',function(req,res){
 	
 });
 
-router.get("/connect/:db",function(req,res){
+router.post("/connect/:db",function(req,res){
 	
  	var dbName = req.params.db;
+	var superClass = req.body.superClass
+	console.log("superCLass:  " +req.body.superClass)
 	oEngine.openDB(dbName,'root','root'); 
 	oEngine.getClassListPr(dbName)
 	.then(vals => {
 		//console.log(vals);
 		var classArr = [];
 		vals.forEach((e,i,a) => {
-			classArr.push(e.name);
+			if(superClass == "" || e.superClass == superClass)
+			  classArr.push(e.name);			
 		});
 		console.log("classArr=",classArr)
 		res.send({
@@ -70,6 +73,7 @@ router.get("/connect/:db",function(req,res){
 	//dbEngine.
 	//res.send(200)
 })
+
 
 router.get('/getClassProps/:db/:class',(req,res)=>{
 	

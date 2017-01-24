@@ -438,7 +438,7 @@ var dbHandler = new Vue({
 		 
 		connectToDb:function(dbName){
 			showLoading(true);
-			this.$http({url:'/connect/'+dbName, method:"GET"})
+			this.$http({url:'/connect/'+dbName, method:"POST", body: {superClass:"V"} })
 			.then(response=>{
 				this.connectedDb = dbName;
 				console.log(response.data);

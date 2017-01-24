@@ -42,6 +42,7 @@ class dbEngine{
 	
 	getClassListPr(dbName) {
 		return this.getDB(dbName).class.list();
+		
 	}
 	
 	addDB(dbName,dbObj){
