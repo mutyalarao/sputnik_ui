@@ -354,6 +354,8 @@ class Graph{
 					this.graphComps.textG.remove();
 				else
 					this.graphComps.textG = canvasG.append("g"); 
+				
+				this.graphComps.circleTextG = canvasG.append("g");
 
 	/* 		   
 				drag.on("start", () => {
@@ -516,13 +518,15 @@ class Graph{
 		  .data(this.nodes, d => {
 			  //console.log(d.rid);
 			  return d.name})
-		  
+			  
+ 		
 		console.log('force.nodes.....')
 		console.log(nodeData);	
 		console.log("nodeData.enter",nodeData.enter())	
-		console.log("*** this.nodes count "+ this.nodes.length);	
+		console.log("*** this.nodes count "+ this.nodes);	
 		console.log("*** force.nodes count "+ this.sim.nodes().length);		
 		console.log("this.force.nodes()",this.sim.nodes());
+		
 		 this.circle = nodeData.enter().append("circle")
 			.attr("r", 6)
 			.attr("class", d => {
@@ -545,6 +549,28 @@ class Graph{
 			console.log("this.nodes .. this.links...")
 			console.log(this.nodes);
 			console.log(this.links);
+		
+/* 		this.graphComps.circleTextG
+				.style('z-index',5)
+				.selectAll("text")
+				.data(this.nodes,d=>{
+					return d.name;
+				})
+				.enter().append("text")
+			.attr("x",d => {  console.log(JSON.stringify(d)); console.log(d.x); return 100})
+			.attr("y",d => {return d.y})			
+			.attr("font-size", 20)
+			.text(d => { return d.data.symbol})	 */			
+				  
+		//console.log('circleTextData...');
+		//console.log(circleTextData);
+		
+/* 		this.nodes.enter().append("text")
+			.attr("x",d => {  console.log(JSON.stringify(d)); console.log(d.x); return 100})
+			.attr("y",d => {return d.y})			
+			.attr("font-size", 20)
+			.text(d => { return d.data.symbol})	
+			.merge(nodeData)			 */
 			
 			//Start the simulation
 			this.sim.nodes(this.nodes)
